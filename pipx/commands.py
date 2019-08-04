@@ -47,6 +47,8 @@ def run(
     pypackages: bool,
     verbose: bool,
     use_cache: bool,
+    *,
+    full_venv: bool,
 ):
     """Installs venv to temporary dir (or reuses cache), then runs binary from
     package
@@ -92,7 +94,7 @@ def run(
 
     venv_dir = _get_temporary_venv_path(package_or_url, python, pip_args, venv_args)
 
-    venv = Venv(venv_dir)
+    venv = Venv(venv_dir, full_venv=full_venv)
     bin_path = venv.bin_path / binary
     _prepare_venv_cache(venv, bin_path, use_cache)
 
@@ -110,6 +112,7 @@ def run(
             pip_args,
             venv_args,
             verbose,
+            full_venv=full_venv,
         )
 
     if not use_cache:
@@ -126,8 +129,10 @@ def _download_and_run(
     pip_args: List[str],
     venv_args: List[str],
     verbose: bool,
+    *,
+    full_venv: bool,
 ):
-    venv = Venv(venv_dir, python=python, verbose=verbose)
+    venv = Venv(venv_dir, python=python, verbose=verbose, full_venv=full_venv)
     venv.create_venv(venv_args, pip_args)
     venv.install_package(package, pip_args)
     if not (venv.bin_path / binary).exists():
@@ -291,6 +296,7 @@ def install(
     *,
     force: bool,
     include_deps: bool,
+    full_venv: bool,
 ):
     try:
         exists = venv_dir.exists() and next(venv_dir.iterdir())
@@ -308,7 +314,7 @@ def install(
             )
             return
 
-    venv = Venv(venv_dir, python=python, verbose=verbose)
+    venv = Venv(venv_dir, python=python, verbose=verbose, full_venv=full_venv)
     try:
         venv.create_venv(venv_args, pip_args)
         venv.install_package(package_or_url, pip_args)
@@ -471,6 +477,7 @@ def reinstall_all(
     include_deps: bool,
     *,
     skip: List[str],
+    full_venv: bool,
 ):
     for venv_dir in venv_container.iter_venv_dirs():
         package = venv_dir.name
@@ -490,6 +497,7 @@ def reinstall_all(
             verbose,
             force=True,
             include_deps=include_deps,
+            full_venv=full_venv,
         )
 
 

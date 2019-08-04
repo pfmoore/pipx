@@ -73,13 +73,19 @@ class Venv:
     """Abstraction for a virtual environment with various useful methods for pipx"""
 
     def __init__(
-        self, path: Path, *, verbose: bool = False, python: str = DEFAULT_PYTHON
+        self,
+        path: Path,
+        *,
+        verbose: bool = False,
+        python: str = DEFAULT_PYTHON,
+        full_venv=False,
     ) -> None:
         self.root = path
         self._python = python
         self.bin_path, self.python_path = get_venv_paths(self.root)
         self.verbose = verbose
         self.do_animation = not verbose
+        self.use_shared_libs_new_venv = not full_venv
         try:
             self._existing = self.root.exists() and next(self.root.iterdir())
         except StopIteration:
@@ -107,25 +113,36 @@ class Venv:
             pth_files = self.root.glob("**/" + PIPX_SHARED_PTH)
             return next(pth_files, None) is not None
         else:
-            # always use shared libs when creating a new venv
-            return True
+            return self.use_shared_libs_new_venv
 
     def create_venv(self, venv_args: List[str], pip_args: List[str]) -> None:
         with animate("creating virtual environment", self.do_animation):
-            cmd = [self._python, "-m", "venv", "--without-pip"]
-            run(cmd + venv_args + [str(self.root)])
-            shared_libs.create(pip_args, self.verbose)
-            pipx_pth = get_site_packages(self.python_path) / PIPX_SHARED_PTH
-            # write path pointing to the shared libs site-packages directory
-            # example pipx_pth location:
-            #   ~/.local/pipx/venvs/black/lib/python3.8/site-packages/pipx_shared.pth
-            # example shared_libs.site_packages location:
-            #   ~/.local/pipx/shared/lib/python3.6/site-packages
-            #
-            # https://docs.python.org/3/library/site.html
-            # A path configuration file is a file whose name has the form 'name.pth'.
-            # its contents are additional items (one per line) to be added to sys.path
-            pipx_pth.write_text(str(shared_libs.site_packages) + "\n", encoding="utf-8")
+            if self.use_shared_libs_new_venv:
+                self._create_shared_venv(venv_args, pip_args)
+            else:
+                self._create_full_venv(venv_args, pip_args)
+
+    def _create_shared_venv(self, venv_args: List[str], pip_args: List[str]) -> None:
+        cmd = [self._python, "-m", "venv", "--without-pip"]
+        run(cmd + venv_args + [str(self.root)])
+        shared_libs.create(pip_args, self.verbose)
+        pipx_pth = get_site_packages(self.python_path) / PIPX_SHARED_PTH
+        # write path pointing to the shared libs site-packages directory
+        # example pipx_pth location:
+        #   ~/.local/pipx/venvs/black/lib/python3.8/site-packages/pipx_shared.pth
+        # example shared_libs.site_packages location:
+        #   ~/.local/pipx/shared/lib/python3.6/site-packages
+        #
+        # https://docs.python.org/3/library/site.html
+        # A path configuration file is a file whose name has the form 'name.pth'.
+        # its contents are additional items (one per line) to be added to sys.path
+        pipx_pth.write_text(str(shared_libs.site_packages) + "\n", encoding="utf-8")
+
+    def _create_full_venv(self, venv_args: List[str], pip_args: List[str]) -> None:
+        run([self._python, "-m", "venv"] + venv_args + [str(self.root)])
+        ignored_args = ["--editable"]
+        _pip_args = [arg for arg in pip_args if arg not in ignored_args]
+        self.upgrade_package("pip", _pip_args)
 
     def safe_to_remove(self) -> bool:
         return not self._existing

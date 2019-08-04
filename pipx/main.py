@@ -138,6 +138,7 @@ def run_pipx_command(args, binary_args: List[str]):
             args.spec if ("spec" in args and args.spec is not None) else args.binary
         )
         use_cache = not args.no_cache
+
         return commands.run(
             args.binary,
             package_or_url,
@@ -148,6 +149,7 @@ def run_pipx_command(args, binary_args: List[str]):
             args.pypackages,
             verbose,
             use_cache,
+            full_venv=args.full_venv,
         )
     elif args.command == "install":
         package_or_url = (
@@ -164,6 +166,7 @@ def run_pipx_command(args, binary_args: List[str]):
             verbose,
             force=args.force,
             include_deps=args.include_deps,
+            full_venv=args.full_venv,
         )
     elif args.command == "inject":
         if not args.include_binaries and args.include_deps:
@@ -216,6 +219,7 @@ def run_pipx_command(args, binary_args: List[str]):
             verbose,
             args.include_deps,
             skip=args.skip,
+            full_venv=args.full_venv,
         )
     elif args.command == "runpip":
         if not venv_dir:
@@ -255,6 +259,18 @@ def add_include_deps(parser):
     parser.add_argument(
         "--include-deps",
         help="Include binaries of dependent packages",
+        action="store_true",
+    )
+
+
+def add_full_venv_arg(parser):
+    parser.add_argument(
+        "--full-venv",
+        help=(
+            "Do not use the shared pipx venv for tools common across venvs. "
+            "Instead, create a full venv for this package, including its own "
+            "pip installation. "
+        ),
         action="store_true",
     )
 
@@ -304,6 +320,7 @@ def get_command_parser():
         ),
     )
     add_pip_venv_args(p)
+    add_full_venv_arg(p)
 
     p = subparsers.add_parser(
         "inject",
@@ -389,6 +406,7 @@ def get_command_parser():
     add_pip_venv_args(p)
     p.add_argument("--skip", nargs="+", default=[], help="skip these packages")
     p.add_argument("--verbose", action="store_true")
+    add_full_venv_arg(p)
 
     p = subparsers.add_parser(
         "list",
@@ -445,6 +463,7 @@ def get_command_parser():
         help="The Python version to run package's CLI binary with. Must be v3.3+.",
     )
     add_pip_venv_args(p)
+    add_full_venv_arg(p)
 
     p = subparsers.add_parser(
         "runpip",
